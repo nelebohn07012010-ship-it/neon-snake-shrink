@@ -1,34 +1,160 @@
-<!doctype html>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Neon Snake</title>
-<style>
-  body {
-    background: #050a10;
-    color: #39ffae;
-    font: 16px monospace;
-    text-align: center
-  }
+<!DOCTYPE html>
+<html lang="de">
 
-  canvas {
-    width: min(90vw, 400px);
-    background: #08121a;
-    border: 1px solid #39ffae
-  }
-</style>
-<h2>NEON SNAKE</h2>
-<p>PUNKTE: <b id=s>0</b> | BEST: <b id=b>0</b></p><canvas id=c width=300 height=300></canvas>
-<p id=m>Pfeiltasten / WASD · Leertaste = Neustart</p>
-<script>
-  let c = document.querySelector("#c"), x = c.getContext("2d"), s = document.querySelector("#s"), b = document.querySelector("#b"), m = document.querySelector("#m"), a, d, f, n = 0, o = 0, ac;
-  b.textContent = localStorage.best || 0;
-  function food() { let q = []; for (let i = 0; i < 15; i++)for (let j = 0; j < 15; j++)if (!a.some(p => p[0] == i && p[1] == j)) q.push([i, j]); if (!q.length) { end(1); return } f = q[Math.random() * q.length | 0] }
-  function reset() { a = [[7, 7], [6, 7], [5, 7]]; d = [1, 0]; n = 0; o = 0; s.textContent = 0; m.textContent = "Pfeiltasten / WASD · Leertaste = Neustart"; food(); draw() }
-  function beep(h, l) { if (!ac) return; let z = ac.createOscillator(), g = ac.createGain(); z.frequency.value = h; g.gain.value = .06; z.connect(g); g.connect(ac.destination); z.start(); z.frequency.exponentialRampToValueAtTime(l, ac.currentTime + .12); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .13); z.stop(ac.currentTime + .14) }
-  let keys = { arrowup: [0, -1], w: [0, -1], arrowdown: [0, 1], s: [0, 1], arrowleft: [-1, 0], a: [-1, 0], arrowright: [1, 0], d: [1, 0] };
-  onkeydown = e => { let k = e.key.toLowerCase(), q = keys[k]; if (q || k == " ") e.preventDefault(); if (!ac) { let A = window.AudioContext || window.webkitAudioContext; if (A) ac = new A } if (ac?.state == "suspended") ac.resume(); if (k == " " && o) { reset(); beep(440, 660); return } if (q && !o && q[0] != -d[0] && q[1] != -d[1]) d = q };
-  function draw() { x.clearRect(0, 0, 300, 300); x.fillStyle = "#ff7040"; x.fillRect(f[0] * 20 + 3, f[1] * 20 + 3, 14, 14); a.forEach((p, i) => { x.fillStyle = i ? "#16bd80" : "#39ffae"; x.fillRect(p[0] * 20 + 2, p[1] * 20 + 2, 16, 16) }) }
-  function end(win) { o = 1; m.textContent = win ? "GEWONNEN! · Leertaste = Neustart" : "GAME OVER · Leertaste = Neustart"; beep(440, 180) }
-  function step() { if (o) return; let h = [a[0][0] + d[0], a[0][1] + d[1]], eat = h + "" == f + "", body = eat ? a : a.slice(0, -1); if (h[0] < 0 || h[0] > 14 || h[1] < 0 || h[1] > 14 || body.some(p => p + "" == h + "")) { end(0); return } a.unshift(h); if (eat) { n += 10; s.textContent = n; if (n > +b.textContent) { b.textContent = n; localStorage.best = n } food(); beep(520, 880) } else a.pop(); draw() }
-  reset(); setInterval(step, 150);
-</script>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neon Snake</title>
+
+  <style>
+    body {
+      background: #050a10;
+      color: #39ffae;
+      font: 16px monospace;
+      text-align: center;
+    }
+
+    canvas {
+      width: min(90vw, 400px);
+      background: #08121a;
+      border: 1px solid #39ffae;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>NEON SNAKE</h2>
+
+  <p>
+    PUNKTE: <b id="s">0</b> |
+    BEST: <b id="b">0</b>
+  </p>
+
+  <canvas id="c" width="300" height="300"></canvas>
+
+  <p id="m">Pfeiltasten/WASD · Leertaste = Neustart</p>
+
+  <script>
+    let c = document.getElementById("c");
+    let x = c.getContext("2d");
+    let s = document.getElementById("s");
+    let b = document.getElementById("b");
+    let m = document.getElementById("m");
+
+    let a, d, f, n = 0, o = 0, best = 0;
+
+    // Neues Futter an einer freien Position erzeugen
+    function food() {
+      do {
+        f = [
+          Math.random() * 15 | 0,
+          Math.random() * 15 | 0
+        ];
+      } while (a.some(p => p[0] == f[0] && p[1] == f[1]));
+    }
+
+    // Spielfeld und Snake zeichnen
+    function draw() {
+      x.clearRect(0, 0, 300, 300);
+
+      // Futter
+      x.fillStyle = "#ff7040";
+      x.fillRect(f[0] * 20 + 3, f[1] * 20 + 3, 14, 14);
+
+      // Snake
+      a.forEach((p, i) => {
+        x.fillStyle = i ? "#16bd80" : "#39ffae";
+        x.fillRect(p[0] * 20 + 2, p[1] * 20 + 2, 16, 16);
+      });
+    }
+
+    // Spiel zurücksetzen
+    function reset() {
+      a = [[7, 7], [6, 7], [5, 7]];
+      d = [1, 0];
+      n = 0;
+      o = 0;
+
+      s.textContent = 0;
+      m.textContent = "Pfeiltasten/WASD · Leertaste = Neustart";
+
+      food();
+      draw();
+    }
+
+    // Tastatursteuerung
+    onkeydown = e => {
+      let k = e.key.toLowerCase();
+
+      let q = ({
+        arrowup: [0, -1],
+        w: [0, -1],
+        arrowdown: [0, 1],
+        s: [0, 1],
+        arrowleft: [-1, 0],
+        a: [-1, 0],
+        arrowright: [1, 0],
+        d: [1, 0]
+      })[k];
+
+      // Richtungswechsel verhindern, wenn er um 180° dreht
+      if (q && !o && q[0] != -d[0] && q[1] != -d[1]) {
+        d = q;
+      }
+
+      // Neustart nach Game Over
+      if (k == " " && o) {
+        e.preventDefault();
+        reset();
+      }
+    };
+
+    // Ein Spielschritt
+    function step() {
+      if (o) return;
+
+      let h = [
+        a[0][0] + d[0],
+        a[0][1] + d[1]
+      ];
+
+      let eat = h + "" == f + "";
+      let body = eat ? a : a.slice(0, -1);
+
+      // Kollision mit Wand oder eigenem Körper
+      if (
+        h[0] < 0 || h[0] > 14 ||
+        h[1] < 0 || h[1] > 14 ||
+        body.some(p => p + "" == h + "")
+      ) {
+        o = 1;
+        m.textContent = "GAME OVER · Leertaste = Neustart";
+        return;
+      }
+
+      a.unshift(h);
+
+      // Futter eingesammelt
+      if (eat) {
+        n += 10;
+        s.textContent = n;
+
+        if (n > best) {
+          b.textContent = best = n;
+        }
+
+        food();
+      } else {
+        a.pop();
+      }
+
+      draw();
+    }
+
+    // Spiel starten
+    reset();
+    setInterval(step, 150);
+  </script>
+</body>
+
+</html>
