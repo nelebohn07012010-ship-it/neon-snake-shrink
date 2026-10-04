@@ -1,5 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Neon Snake</title>
 <style>
   body {
@@ -16,18 +17,18 @@
   }
 </style>
 <h2>NEON SNAKE</h2>
-<p>PUNKTE: <b id="s">0</b> | BEST: <b id="b">0</b></p>
-<canvas id="c" width="300" height="300"></canvas>
-<p id="m">Pfeiltasten / WASD · Leertaste = Neustart</p>
+<p>PUNKTE: <b id=s>0</b> | BEST: <b id=b>0</b></p><canvas id=c width=300 height=300></canvas>
+<p id=m>Pfeiltasten / WASD · Leertaste = Neustart</p>
 <script>
-  const c = document.querySelector("#c"), x = c.getContext("2d"), s = document.querySelector("#s"), b = document.querySelector("#b"), m = document.querySelector("#m");
-  let a, d, f, n = 0, over = 0, ac;
+  let c = document.querySelector("#c"), x = c.getContext("2d"), s = document.querySelector("#s"), b = document.querySelector("#b"), m = document.querySelector("#m"), a, d, f, n = 0, o = 0, ac;
   b.textContent = localStorage.best || 0;
-  function food() { do { f = [Math.random() * 15 | 0, Math.random() * 15 | 0] } while (a.some(p => p + "" == f + "")) }
-  function reset() { a = [[7, 7], [6, 7], [5, 7]]; d = [1, 0]; n = 0; over = 0; s.textContent = 0; m.textContent = "Pfeiltasten / WASD · Leertaste = Neustart"; food(); draw() }
-  function beep(h, l) { if (!ac) return; let o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = h; g.gain.value = .06; o.connect(g); g.connect(ac.destination); o.start(); o.frequency.exponentialRampToValueAtTime(l, ac.currentTime + .12); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .13); o.stop(ac.currentTime + .14) }
-  document.onkeydown = e => { let k = e.key.toLowerCase(), q = { arrowup: [0, -1], w: [0, -1], arrowdown: [0, 1], s: [0, 1], arrowleft: [-1, 0], a: [-1, 0], arrowright: [1, 0], d: [1, 0] }[k]; if (" arrowup arrowdown arrowleft arrowright wasd".includes(k)) e.preventDefault(); if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === "suspended") ac.resume(); if (k === " " && over) { reset(); beep(440, 660); return } if (q && q[0] !== -d[0] && q[1] !== -d[1] && !over) d = q };
+  function food() { let q = []; for (let i = 0; i < 15; i++)for (let j = 0; j < 15; j++)if (!a.some(p => p[0] == i && p[1] == j)) q.push([i, j]); if (!q.length) { end(1); return } f = q[Math.random() * q.length | 0] }
+  function reset() { a = [[7, 7], [6, 7], [5, 7]]; d = [1, 0]; n = 0; o = 0; s.textContent = 0; m.textContent = "Pfeiltasten / WASD · Leertaste = Neustart"; food(); draw() }
+  function beep(h, l) { if (!ac) return; let z = ac.createOscillator(), g = ac.createGain(); z.frequency.value = h; g.gain.value = .06; z.connect(g); g.connect(ac.destination); z.start(); z.frequency.exponentialRampToValueAtTime(l, ac.currentTime + .12); g.gain.exponentialRampToValueAtTime(.001, ac.currentTime + .13); z.stop(ac.currentTime + .14) }
+  let keys = { arrowup: [0, -1], w: [0, -1], arrowdown: [0, 1], s: [0, 1], arrowleft: [-1, 0], a: [-1, 0], arrowright: [1, 0], d: [1, 0] };
+  onkeydown = e => { let k = e.key.toLowerCase(), q = keys[k]; if (q || k == " ") e.preventDefault(); if (!ac) { let A = window.AudioContext || window.webkitAudioContext; if (A) ac = new A } if (ac?.state == "suspended") ac.resume(); if (k == " " && o) { reset(); beep(440, 660); return } if (q && !o && q[0] != -d[0] && q[1] != -d[1]) d = q };
   function draw() { x.clearRect(0, 0, 300, 300); x.fillStyle = "#ff7040"; x.fillRect(f[0] * 20 + 3, f[1] * 20 + 3, 14, 14); a.forEach((p, i) => { x.fillStyle = i ? "#16bd80" : "#39ffae"; x.fillRect(p[0] * 20 + 2, p[1] * 20 + 2, 16, 16) }) }
-  function step() { if (over) return; let h = [a[0][0] + d[0], a[0][1] + d[1]], eat = h + "" === f + ""; if (h[0] < 0 || h[0] > 14 || h[1] < 0 || h[1] > 14 || a.slice(0, eat ? a.length : a.length - 1).some(p => p + "" === h + "")) { over = 1; m.textContent = "GAME OVER · Leertaste = Neustart"; beep(440, 180); return } a.unshift(h); if (eat) { n += 10; s.textContent = n; if (n > +b.textContent) { b.textContent = n; localStorage.best = n } food(); beep(520, 880) } else a.pop(); draw() }
+  function end(win) { o = 1; m.textContent = win ? "GEWONNEN! · Leertaste = Neustart" : "GAME OVER · Leertaste = Neustart"; beep(440, 180) }
+  function step() { if (o) return; let h = [a[0][0] + d[0], a[0][1] + d[1]], eat = h + "" == f + "", body = eat ? a : a.slice(0, -1); if (h[0] < 0 || h[0] > 14 || h[1] < 0 || h[1] > 14 || body.some(p => p + "" == h + "")) { end(0); return } a.unshift(h); if (eat) { n += 10; s.textContent = n; if (n > +b.textContent) { b.textContent = n; localStorage.best = n } food(); beep(520, 880) } else a.pop(); draw() }
   reset(); setInterval(step, 150);
 </script>
