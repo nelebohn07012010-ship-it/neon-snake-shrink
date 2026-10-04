@@ -250,8 +250,8 @@ void main(){ gl_FragColor=color; }
     function randomFood() {
       const free = [];
 
-      for (let x = -4; x <= 4; x++) {
-        for (let z = -4; z <= 4; z++) {
+      for (let x = -5; x <= 5; x++) {
+        for (let z = -5; z <= 5; z++) {
           if (!snake.some(s => s.x === x && s.z === z)) {
             free.push({ x, z });
           }
@@ -293,7 +293,7 @@ void main(){ gl_FragColor=color; }
     function step() {
       dir = nextDir;
       const head = { x: snake[0].x + dir.x, z: snake[0].z + dir.z };
-      if (head.x < -4 || head.x > 4 || head.z < -4 || head.z > 4) {
+      if (head.x < -5 || head.x > 5 || head.z < -5 || head.z > 5) {
         endGame(); return;
       }
       const eating = head.x === food.x && head.z === food.z;
