@@ -323,7 +323,7 @@ void main(){ gl_FragColor=color; }
 
       if (!gameOver) {
         acc += Math.min(time - last, 100);
-        const speed = Math.max(75, 180 - score * .7);
+        const speed = Math.max(200, 350 - score * .3);
         while (acc >= speed) { step(); acc -= speed; if (gameOver) break; }
       }
       last = time;
