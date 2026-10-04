@@ -1,363 +1,242 @@
-<!DOCTYPE html>
+```html
+<!doctype html>
 <html lang="de">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Neon Snake 3D</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neon Snake</title>
   <style>
     * {
-      box-sizing: border-box
+      box-sizing: border-box;
     }
 
     body {
       margin: 0;
-      background: #050a10;
-      color: #39ffae;
-      font-family: monospace;
+      min-height: 100vh;
       display: grid;
       place-items: center;
-      min-height: 100vh;
+      background: #050a10;
+      color: #39ffae;
+      font: 16px monospace;
+      text-align: center;
     }
 
     main {
-      width: min(94vw, 600px);
-      text-align: center;
-      padding: 12px 0
+      width: min(90vw, 400px);
+      padding: 12px 0;
     }
 
-    h1 {
-      letter-spacing: 5px;
-      margin: 8px 0
+    h2 {
+      letter-spacing: 3px;
+      margin: 8px 0 16px;
     }
 
     canvas {
-      width: 100%;
       display: block;
-      border: 1px solid #164c40;
-      border-radius: 12px;
-      background: #050a10;
+      width: 100%;
+      height: auto;
+      background: #08121a;
+      border: 1px solid #39ffae;
+      border-radius: 4px;
       touch-action: none;
     }
 
-    .info {
-      display: flex;
-      justify-content: space-around;
-      font-size: 16px;
-      margin: 12px 0
-    }
-
-    #status {
-      min-height: 20px;
-      color: #a1ffe0
-    }
-
-    button {
-      background: #0b211e;
-      color: #39ffae;
-      border: 1px solid #1d8064;
-      border-radius: 10px;
-      padding: 12px 18px;
-      font: bold 16px monospace;
-      cursor: pointer;
-      touch-action: manipulation;
-    }
-
-    button:active {
-      background: #164c40
-    }
-
-    .controls {
-      display: grid;
-      grid-template-columns: repeat(3, 60px);
-      grid-template-rows: repeat(2, 52px);
-      gap: 6px;
-      justify-content: center;
-      margin: 12px auto;
+    p {
+      margin: 14px 0;
     }
   </style>
 </head>
 
 <body>
   <main>
-    <h1>NEON SNAKE</h1>
-    <div class="info">
-      <span>PUNKTE: <b id="score">0</b></span>
-      <span>BEST: <b id="best">0</b></span>
-    </div>
-    <canvas id="gl" width="600" height="600"></canvas>
-    <p id="status">Pfeiltasten oder WASD zum Spielen</p>
+    <h2>NEON SNAKE</h2>
+    <p>PUNKTE: <b id="s">0</b> | BEST: <b id="b">0</b></p>
+    <canvas id="c" width="300" height="300"></canvas>
+    <p id="m">Pfeiltasten / WASD · Leertaste = Neustart</p>
   </main>
+
   <script>
-    const canvas = document.querySelector("#gl");
-    const gl = canvas.getContext("webgl");
-    if (!gl) throw Error("WebGL nicht verfügbar");
+    const canvas = document.querySelector("#c");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.querySelector("#s");
+    const bestEl = document.querySelector("#b");
+    const messageEl = document.querySelector("#m");
 
-    const vs = `
-attribute vec3 pos;
-uniform mat4 mvp;
-void main(){ gl_Position=mvp*vec4(pos,1.0); }
-`;
-    const fs = `
-precision mediump float;
-uniform vec4 color;
-void main(){ gl_FragColor=color; }
-`;
-    function shader(type, src) {
-      const s = gl.createShader(type);
-      gl.shaderSource(s, src); gl.compileShader(s);
-      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS))
-        throw Error(gl.getShaderInfoLog(s));
-      return s;
-    }
-    const program = gl.createProgram();
-    gl.attachShader(program, shader(gl.VERTEX_SHADER, vs));
-    gl.attachShader(program, shader(gl.FRAGMENT_SHADER, fs));
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS))
-      throw Error(gl.getProgramInfoLog(program));
-    gl.useProgram(program);
+    const SIZE = 15;
+    const CELL = 20;
+    const START_MESSAGE = "Pfeiltasten / WASD · Leertaste = Neustart";
 
-    const posLoc = gl.getAttribLocation(program, "pos");
-    const mvpLoc = gl.getUniformLocation(program, "mvp");
-    const colorLoc = gl.getUniformLocation(program, "color");
+    let snake, direction, foodPosition, score = 0;
+    let gameOver = false;
+    let audio;
 
-    function mul(a, b) {
-      const o = new Float32Array(16);
-      for (let c = 0; c < 4; c++)
-        for (let r = 0; r < 4; r++)
-          for (let k = 0; k < 4; k++)
-            o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k];
-      return o;
-    }
-    function perspective(f, aspect, n, far) {
-      const t = 1 / Math.tan(f / 2), d = 1 / (n - far);
-      return new Float32Array([
-        t / aspect, 0, 0, 0, 0, t, 0, 0,
-        0, 0, (far + n) * d, -1, 0, 0, 2 * far * n * d, 0
-      ]);
-    }
-    function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] }
-    function cross(a, b) {
-      return [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0]
-      ]
-    }
-    function norm(a) { const l = Math.hypot(...a); return a.map(v => v / l) }
-    function lookAt(e, c, u) {
-      const z = norm([e[0] - c[0], e[1] - c[1], e[2] - c[2]]);
-      const x = norm(cross(u, z)), y = cross(z, x);
-      return new Float32Array([
-        x[0], y[0], z[0], 0, x[1], y[1], z[1], 0,
-        x[2], y[2], z[2], 0, -dot(x, e), -dot(y, e), -dot(z, e), 1
-      ]);
-    }
-    function translation(x, y, z) {
-      return new Float32Array([
-        1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1
-      ]);
-    }
-    function rotateY(a) {
-      return new Float32Array([
-        Math.cos(a), 0, -Math.sin(a), 0,
-        0, 1, 0, 0, Math.sin(a), 0, Math.cos(a), 0,
-        0, 0, 0, 1
-      ]);
-    }
-
-    // Spielfeld-Gitter
-    const grid = [];
-    for (let i = -5; i <= 5; i++) {
-      grid.push(-5, -.02, i, 5, -.02, i);
-      grid.push(i, -.02, -5, i, -.02, 5);
-    }
-
-    // Würfel-Mesh
-    const cube = [];
-    function face(a, b, c, d) {
-      cube.push(...a, ...b, ...c, ...a, ...c, ...d);
-    }
-    face([-.4, 0, .4], [.4, 0, .4], [.4, .8, .4], [-.4, .8, .4]);
-    face([.4, 0, -.4], [-.4, 0, -.4], [-.4, .8, -.4], [.4, .8, -.4]);
-    face([-.4, 0, -.4], [-.4, 0, .4], [-.4, .8, .4], [-.4, .8, -.4]);
-    face([.4, 0, .4], [.4, 0, -.4], [.4, .8, -.4], [.4, .8, .4]);
-    face([-.4, .8, .4], [.4, .8, .4], [.4, .8, -.4], [-.4, .8, -.4]);
-    face([-.4, 0, -.4], [.4, 0, -.4], [.4, 0, .4], [-.4, 0, .4]);
-
-    function buffer(data) {
-      const b = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, b);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
-      return b;
-    }
-    const gridBuf = buffer(grid), cubeBuf = buffer(cube);
-    function draw(buf, count, mode, mvp, color) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-      gl.enableVertexAttribArray(posLoc);
-      gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
-      gl.uniformMatrix4fv(mvpLoc, false, mvp);
-      gl.uniform4fv(colorLoc, color);
-      gl.drawArrays(mode, 0, count);
-    }
-    gl.enable(gl.DEPTH_TEST);
-    gl.clearColor(.015, .03, .05, 1);
-
-    const scoreEl = document.querySelector("#score");
-    const bestEl = document.querySelector("#best");
-    const statusEl = document.querySelector("#status");
-    let snake, dir, nextDir, food, score, best, gameOver;
-    let last = 0, acc = 0;
-    best = Number(localStorage.getItem("neonSnakeBest") || 0);
+    let best = Number(localStorage.getItem("best")) || 0;
     bestEl.textContent = best;
 
-
-    function randomFood() {
+    function placeFood() {
       const free = [];
 
-      for (let x = -5; x <= 5; x++) {
-        for (let z = -5; z <= 5; z++) {
-          if (!snake.some(s => s.x === x && s.z === z)) {
-            free.push({ x, z });
+      for (let x = 0; x < SIZE; x++) {
+        for (let y = 0; y < SIZE; y++) {
+          if (!snake.some(part => part[0] === x && part[1] === y)) {
+            free.push([x, y]);
           }
         }
       }
 
-      if (free.length === 0) {
-        endGame();
-        statusEl.textContent = "GEWONNEN! Das Spielfeld ist voll!";
-        return { x: 0, z: 0 };
+      if (!free.length) {
+        finishGame(true);
+        return;
       }
 
-      return free[Math.floor(Math.random() * free.length)];
+      foodPosition = free[Math.random() * free.length | 0];
     }
 
-
-    let audioCtx;
-
-    function sound(type) {
-      if (!audioCtx) return;
-
-      const notes = {
-        eat: [520, 880],
-        over: [440, 180],
-        start: [440, 660]
-      }[type];
-
-      const now = audioCtx.currentTime;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(notes[0], now);
-      osc.frequency.exponentialRampToValueAtTime(notes[1], now + .16);
-
-      gain.gain.setValueAtTime(.001, now);
-      gain.gain.exponentialRampToValueAtTime(.12, now + .02);
-      gain.gain.exponentialRampToValueAtTime(.001, now + .18);
-
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start(now);
-      osc.stop(now + .19);
+    function reset() {
+      snake = [[7, 7], [6, 7], [5, 7]];
+      direction = [1, 0];
+      score = 0;
+      gameOver = false;
+      scoreEl.textContent = "0";
+      messageEl.textContent = START_MESSAGE;
+      placeFood();
+      draw();
     }
 
+    function beep(startFrequency, endFrequency) {
+      if (!audio) return;
 
-    function restart() {
-      snake = [{ x: 0, z: 0 }, { x: -1, z: 0 }, { x: -2, z: 0 }, { x: -3, z: 0 }];
-      dir = { x: 1, z: 0 }; nextDir = { x: 1, z: 0 };
-      score = 0; gameOver = false; acc = 0; last = 0;
-      food = randomFood();
-      scoreEl.textContent = score;
-      statusEl.textContent = "Pfeiltasten oder WASD zum Spielen";
-      if (k === " " && gameOver) {
-        sound("start");
-        restart();
+      const oscillator = audio.createOscillator();
+      const gain = audio.createGain();
+
+      oscillator.frequency.value = startFrequency;
+      gain.gain.value = 0.06;
+      oscillator.connect(gain);
+      gain.connect(audio.destination);
+      oscillator.start();
+      oscillator.frequency.exponentialRampToValueAtTime(
+        endFrequency, audio.currentTime + 0.12
+      );
+      gain.gain.exponentialRampToValueAtTime(
+        0.001, audio.currentTime + 0.13
+      );
+      oscillator.stop(audio.currentTime + 0.14);
+    }
+
+    const keys = {
+      arrowup: [0, -1], w: [0, -1],
+      arrowdown: [0, 1], s: [0, 1],
+      arrowleft: [-1, 0], a: [-1, 0],
+      arrowright: [1, 0], d: [1, 0]
+    };
+
+    document.addEventListener("keydown", event => {
+      const key = event.key.toLowerCase();
+
+      if (keys[key] || key === " ") event.preventDefault();
+
+      if (!audio) {
+        const AudioContextClass =
+          window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) audio = new AudioContextClass();
       }
-    }
-    function turn(x, z) {
-      if (gameOver) return;
-      if (x === -dir.x && z === -dir.z) return;
-      nextDir = { x, z };
-    }
-    document.addEventListener("keydown", e => {
-      const k = e.key.toLowerCase();
-      const keys = ["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d", " "];
-      if (keys.includes(k)) e.preventDefault();
-      if (k === "arrowup" || k === "w") turn(0, -1);
-      if (k === "arrowdown" || k === "s") turn(0, 1);
-      if (k === "arrowleft" || k === "a") turn(-1, 0);
-      if (k === "arrowright" || k === "d") turn(1, 0);
-      if (k === " " && gameOver) restart();
 
-      if (!audioCtx && (
-        ["arrowup", "arrowdown", "arrowleft", "arrowright",
-          "w", "a", "s", "d", " "].includes(k)
-      )) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audio?.state === "suspended") audio.resume();
+
+      if (key === " " && gameOver) {
+        reset();
+        beep(440, 660);
+        return;
       }
-      if (audioCtx?.state === "suspended") audioCtx.resume();
 
+      const next = keys[key];
+      if (
+        next &&
+        next[0] !== -direction[0] &&
+        next[1] !== -direction[1] &&
+        !gameOver
+      ) {
+        direction = next;
+      }
     });
-    function step() {
-      dir = nextDir;
-      const head = { x: snake[0].x + dir.x, z: snake[0].z + dir.z };
-      if (head.x < -5 || head.x > 5 || head.z < -5 || head.z > 5) {
-        endGame(); return;
-      }
-      const eating = head.x === food.x && head.z === food.z;
-      const body = eating ? snake : snake.slice(0, -1);
-      if (body.some(s => s.x === head.x && s.z === head.z)) {
-        endGame(); return;
-      }
-      snake.unshift(head);
-      if (eating) {
-        sound("eat");
-        score += 10; scoreEl.textContent = score;
-        if (score > best) {
-          best = score; bestEl.textContent = best;
-          localStorage.setItem("neonSnakeBest", best);
-        }
-        food = randomFood();
-      } else snake.pop();
-    }
-    function endGame() {
-      sound("over");
-      gameOver = true;
-      statusEl.textContent = "GAME OVER — Neustart drücken oder Leertaste";
-    }
-    function render(time) {
-      gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-      const p = perspective(Math.PI / 4, canvas.width / canvas.height, .1, 100);
-      const v = lookAt([7, 8, 10], [0, 0, 0], [0, 1, 0]);
-      const vp = mul(p, v);
 
-      draw(gridBuf, grid.length / 3, gl.LINES, vp, [.05, .28, .22, 1]);
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Futter
-      const foodModel = mul(translation(food.x, 0, food.z), rotateY(time * .0015));
-      draw(cubeBuf, cube.length / 3, gl.TRIANGLES, mul(vp, foodModel), [1, .25, .08, 1]);
+      ctx.fillStyle = "#ff7040";
+      ctx.fillRect(
+        foodPosition[0] * CELL + 3,
+        foodPosition[1] * CELL + 3,
+        14, 14
+      );
 
-      // Schlange
-      snake.forEach((s, i) => {
-        const model = translation(s.x, 0, s.z);
-        const color = i === 0 ? [.05, 1, .45, 1] : [.02, .65, .38, 1];
-        draw(cubeBuf, cube.length / 3, gl.TRIANGLES, mul(vp, model), color);
+      snake.forEach((part, index) => {
+        ctx.fillStyle = index === 0 ? "#39ffae" : "#16bd80";
+        ctx.fillRect(
+          part[0] * CELL + 2,
+          part[1] * CELL + 2,
+          16, 16
+        );
       });
-
-      if (!gameOver) {
-        acc += Math.min(time - last, 100);
-        const speed = Math.max(200, 350 - score * .3);
-        while (acc >= speed) { step(); acc -= speed; if (gameOver) break; }
-      }
-      last = time;
-      requestAnimationFrame(render);
     }
-    restart();
-    requestAnimationFrame(render);
+
+    function finishGame(won = false) {
+      gameOver = true;
+      messageEl.textContent = won
+        ? "GEWONNEN! Spielfeld voll · Leertaste = Neustart"
+        : "GAME OVER · Leertaste = Neustart";
+      beep(440, 180);
+    }
+
+    function step() {
+      if (gameOver) return;
+
+      const head = [
+        snake[0][0] + direction[0],
+        snake[0][1] + direction[1]
+      ];
+
+      const eating =
+        head[0] === foodPosition[0] &&
+        head[1] === foodPosition[1];
+
+      const body = eating ? snake : snake.slice(0, -1);
+
+      if (
+        head[0] < 0 || head[0] >= SIZE ||
+        head[1] < 0 || head[1] >= SIZE ||
+        body.some(part => part[0] === head[0] && part[1] === head[1])
+      ) {
+        finishGame();
+        return;
+      }
+
+      snake.unshift(head);
+
+      if (eating) {
+        score += 10;
+        scoreEl.textContent = score;
+
+        if (score > best) {
+          best = score;
+          bestEl.textContent = best;
+          localStorage.setItem("best", best);
+        }
+
+        placeFood();
+        beep(520, 880);
+      } else {
+        snake.pop();
+      }
+
+      draw();
+    }
+
+    reset();
+    setInterval(step, 150);
   </script>
 </body>
 
 </html>
+```
