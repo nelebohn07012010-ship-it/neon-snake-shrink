@@ -233,6 +233,37 @@ void main(){ gl_FragColor=color; }
       return free[Math.floor(Math.random() * free.length)];
     }
 
+
+    let audioCtx;
+
+    function sound(type) {
+      if (!audioCtx) return;
+
+      const notes = {
+        eat: [520, 880],
+        over: [440, 180],
+        start: [440, 660]
+      }[type];
+
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(notes[0], now);
+      osc.frequency.exponentialRampToValueAtTime(notes[1], now + .16);
+
+      gain.gain.setValueAtTime(.001, now);
+      gain.gain.exponentialRampToValueAtTime(.12, now + .02);
+      gain.gain.exponentialRampToValueAtTime(.001, now + .18);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + .19);
+    }
+
+
     function restart() {
       snake = [{ x: 0, z: 0 }, { x: -1, z: 0 }, { x: -2, z: 0 }, { x: -3, z: 0 }];
       dir = { x: 1, z: 0 }; nextDir = { x: 1, z: 0 };
@@ -240,6 +271,10 @@ void main(){ gl_FragColor=color; }
       food = randomFood();
       scoreEl.textContent = score;
       statusEl.textContent = "Pfeiltasten oder WASD zum Spielen";
+      if (k === " " && gameOver) {
+        sound("start");
+        restart();
+      }
     }
     function turn(x, z) {
       if (gameOver) return;
@@ -255,6 +290,15 @@ void main(){ gl_FragColor=color; }
       if (k === "arrowleft" || k === "a") turn(-1, 0);
       if (k === "arrowright" || k === "d") turn(1, 0);
       if (k === " " && gameOver) restart();
+
+      if (!audioCtx && (
+        ["arrowup", "arrowdown", "arrowleft", "arrowright",
+          "w", "a", "s", "d", " "].includes(k)
+      )) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx?.state === "suspended") audioCtx.resume();
+
     });
     function step() {
       dir = nextDir;
@@ -269,6 +313,7 @@ void main(){ gl_FragColor=color; }
       }
       snake.unshift(head);
       if (eating) {
+        sound("eat");
         score += 10; scoreEl.textContent = score;
         if (score > best) {
           best = score; bestEl.textContent = best;
@@ -278,6 +323,7 @@ void main(){ gl_FragColor=color; }
       } else snake.pop();
     }
     function endGame() {
+      sound("over");
       gameOver = true;
       statusEl.textContent = "GAME OVER — Neustart drücken oder Leertaste";
     }
